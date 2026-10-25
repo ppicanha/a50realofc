@@ -99,8 +99,8 @@
         
         <form onsubmit="handleFirebaseLogin(event)">
             <div class="input-group">
-                <label>URL do Servidor Termux (Ex: https://xyz.trycloudflare.com)</label>
-                <input type="url" id="serverUrl" class="input-control" required placeholder="https://..." value="">
+                <label>URL do Servidor Termux (Cloudflare)</label>
+                <input type="url" id="serverUrl" class="input-control" required placeholder="https://xyz.trycloudflare.com">
             </div>
             <div class="input-group">
                 <label>E-mail</label>
@@ -110,7 +110,7 @@
                 <label>Palavra-passe</label>
                 <input type="password" id="password" class="input-control" required placeholder="••••••••">
             </div>
-            <button type="submit" class="btn" style="width: 100%; margin-top: 10px;">Entrar</button>
+            <button type="submit" id="loginBtn" class="btn" style="width: 100%; margin-top: 10px;">Entrar</button>
         </form>
     </div>
 
@@ -195,6 +195,7 @@
     const auth = firebase.auth();
 
     let API_BASE_URL = localStorage.getItem('a50_server_url') || '';
+    let authToken = localStorage.getItem('a50_token') || '';
     let currentPath = '';
     let selectedAppPackage = '';
     let selectedAppName = '';
@@ -203,20 +204,11 @@
         document.getElementById('serverUrl').value = API_BASE_URL;
     }
 
-    async function checkSession() {
-        if (!API_BASE_URL) return showLogin();
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/session`, { credentials: 'include' });
-            const data = await res.json();
-            if (data.isLoggedIn) {
-                document.getElementById('userBadge').innerText = data.email;
-                showDashboard();
-            } else {
-                showLogin();
-            }
-        } catch(e) {
-            showLogin();
-        }
+    function getAuthHeaders() {
+        return {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        };
     }
 
     function showLogin() {
@@ -247,6 +239,10 @@
 
     async function handleFirebaseLogin(e) {
         e.preventDefault();
+        const btn = document.getElementById('loginBtn');
+        btn.innerText = 'Entrando...';
+        btn.disabled = true;
+
         const serverUrlInput = document.getElementById('serverUrl').value.replace(/\/$/, '');
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
@@ -257,57 +253,57 @@
         try {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             const user = userCredential.user;
+            authToken = await user.getIdToken();
 
-            const res = await fetch(`${API_BASE_URL}/api/login-firebase`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email: user.email })
-            });
+            localStorage.setItem('a50_token', authToken);
+            document.getElementById('userBadge').innerText = user.email;
 
-            if (res.ok) {
-                checkSession();
-            } else {
-                alert('Erro na conexão com a API do Termux.');
-            }
+            showDashboard();
         } catch (error) {
             alert('Erro no login Firebase: ' + error.message);
+        } finally {
+            btn.innerText = 'Entrar';
+            btn.disabled = false;
         }
     }
 
     async function handleLogout() {
         await auth.signOut();
-        await fetch(`${API_BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+        localStorage.removeItem('a50_token');
         showLogin();
     }
 
     async function loadSystemStatus() {
-        const res = await fetch(`${API_BASE_URL}/api/system`, { credentials: 'include' });
-        if (res.ok) {
-            const data = await res.json();
-            document.getElementById('batLevel').innerText = data.battery;
-            document.getElementById('wifiStatus').innerText = data.wifi;
-            document.getElementById('storageUsed').innerText = data.storage.used + ' / ' + data.storage.total;
-            document.getElementById('storageFree').innerText = data.storage.free;
-        }
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/system`, { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('batLevel').innerText = data.battery;
+                document.getElementById('wifiStatus').innerText = data.wifi;
+                document.getElementById('storageUsed').innerText = data.storage.used + ' / ' + data.storage.total;
+                document.getElementById('storageFree').innerText = data.storage.free;
+            }
+        } catch(e) {}
     }
 
     async function loadFiles() {
-        const res = await fetch(`${API_BASE_URL}/api/files?path=${encodeURIComponent(currentPath)}`, { credentials: 'include' });
-        if (!res.ok) return;
-        const data = await res.json();
-        document.getElementById('currentPath').innerText = currentPath;
-        const list = document.getElementById('fileList');
-        list.innerHTML = '';
-        data.files.forEach(item => {
-            const li = document.createElement('li');
-            li.className = 'file-item';
-            li.innerHTML = `<div class="file-item-name"><span>${item.isDirectory ? '📁' : '📄'}</span><span>${item.name}</span></div>`;
-            if (item.isDirectory) {
-                li.onclick = () => { currentPath += (currentPath ? '/' : '') + item.name; loadFiles(); };
-            }
-            list.appendChild(li);
-        });
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/files?path=${encodeURIComponent(currentPath)}`, { headers: getAuthHeaders() });
+            if (!res.ok) return;
+            const data = await res.json();
+            document.getElementById('currentPath').innerText = currentPath;
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+            data.files.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'file-item';
+                li.innerHTML = `<div class="file-item-name"><span>${item.isDirectory ? '📁' : '📄'}</span><span>${item.name}</span></div>`;
+                if (item.isDirectory) {
+                    li.onclick = () => { currentPath += (currentPath ? '/' : '') + item.name; loadFiles(); };
+                }
+                list.appendChild(li);
+            });
+        } catch(e) {}
     }
 
     function navigateUp() {
@@ -319,17 +315,19 @@
     }
 
     async function loadApps() {
-        const res = await fetch(`${API_BASE_URL}/api/apps`, { credentials: 'include' });
-        if (!res.ok) return;
-        const data = await res.json();
-        const list = document.getElementById('appList');
-        list.innerHTML = '';
-        data.apps.forEach(app => {
-            const li = document.createElement('li');
-            li.className = 'file-item';
-            li.innerHTML = `<div class="file-item-name"><span>📱</span><span style="font-weight: 600;">${app.name}</span></div><button class="btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openAppModal('${app.name}', '${app.package}')">Gerenciar</button>`;
-            list.appendChild(li);
-        });
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/apps`, { headers: getAuthHeaders() });
+            if (!res.ok) return;
+            const data = await res.json();
+            const list = document.getElementById('appList');
+            list.innerHTML = '';
+            data.apps.forEach(app => {
+                const li = document.createElement('li');
+                li.className = 'file-item';
+                li.innerHTML = `<div class="file-item-name"><span>📱</span><span style="font-weight: 600;">${app.name}</span></div><button class="btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openAppModal('${app.name}', '${app.package}')">Gerenciar</button>`;
+                list.appendChild(li);
+            });
+        } catch(e) {}
     }
 
     async function openAppModal(name, pkg) {
@@ -341,12 +339,14 @@
         document.getElementById('modalAppBattery').innerText = 'Carregando...';
         document.getElementById('appModal').classList.remove('hidden');
 
-        const res = await fetch(`${API_BASE_URL}/api/apps/details?pkg=${encodeURIComponent(pkg)}`, { credentials: 'include' });
-        if (res.ok) {
-            const data = await res.json();
-            document.getElementById('modalAppSize').innerText = data.size;
-            document.getElementById('modalAppBattery').innerText = data.battery;
-        }
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/apps/details?pkg=${encodeURIComponent(pkg)}`, { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('modalAppSize').innerText = data.size;
+                document.getElementById('modalAppBattery').innerText = data.battery;
+            }
+        } catch(e) {}
     }
 
     function closeAppModal() {
@@ -357,8 +357,7 @@
         if (!confirm(`Limpar dados de ${selectedAppName}?`)) return;
         const res = await fetch(`${API_BASE_URL}/api/apps/clear`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+            headers: getAuthHeaders(),
             body: JSON.stringify({ pkg: selectedAppPackage })
         });
         const data = await res.json();
@@ -369,8 +368,7 @@
         if (!confirm(`Desinstalar ${selectedAppName}?`)) return;
         const res = await fetch(`${API_BASE_URL}/api/apps/uninstall`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+            headers: getAuthHeaders(),
             body: JSON.stringify({ pkg: selectedAppPackage })
         });
         const data = await res.json();
@@ -408,11 +406,15 @@
         });
 
         xhr.open('POST', `${API_BASE_URL}/api/upload`);
-        xhr.withCredentials = true;
+        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
         xhr.send(formData);
     }
 
-    checkSession();
+    if (authToken && API_BASE_URL) {
+        showDashboard();
+    } else {
+        showLogin();
+    }
 </script>
 </body>
 </html>
