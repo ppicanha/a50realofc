@@ -59,8 +59,8 @@
         .status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
         .status-badge { background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); padding: 10px 12px; border-radius: 12px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 2px; }
 
-        .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; }
-        .tab-btn { flex: 1; text-align: center; background: none; border: none; color: var(--text-dim); padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; flex-wrap: wrap; }
+        .tab-btn { flex: 1; text-align: center; background: none; border: none; color: var(--text-dim); padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.9rem; min-width: 120px; }
         .tab-btn.active { background: var(--accent); color: white; }
 
         .path-bar { background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); padding: 12px 16px; border-radius: 12px; font-family: monospace; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; word-break: break-all; font-size: 0.9rem; }
@@ -75,6 +75,13 @@
         .file-list { list-style: none; max-height: 350px; overflow-y: auto; }
         .file-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 12px; margin-bottom: 8px; gap: 10px; }
         .file-item-name { display: flex; align-items: center; gap: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Container do Espelhamento */
+        .screen-container { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .screen-canvas-wrapper { position: relative; border-radius: 16px; overflow: hidden; border: 2px solid var(--card-border); max-width: 360px; width: 100%; background: #000; }
+        canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-action: none; }
+        .controls-row { display: flex; gap: 10px; width: 100%; max-width: 360px; justify-content: space-between; }
+        .control-btn { flex: 1; padding: 10px; font-size: 0.85rem; }
 
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: flex-end; z-index: 100; }
         .modal-content { background: #171a29; border: 1px solid var(--card-border); padding: 24px; border-top-left-radius: 24px; border-top-right-radius: 24px; max-width: 500px; width: 100%; }
@@ -131,11 +138,28 @@
         </div>
 
         <div class="nav-tabs">
-            <button class="tab-btn active" onclick="switchTab('files')">📁 Arquivos</button>
+            <button class="tab-btn active" onclick="switchTab('screen')">🖥️ Tela ao Vivo</button>
+            <button class="tab-btn" onclick="switchTab('files')">📁 Arquivos</button>
             <button class="tab-btn" onclick="switchTab('apps')">📱 Aplicativos</button>
         </div>
 
-        <div id="filesTab">
+        <!-- Tab Tela ao Vivo -->
+        <div id="screenTab">
+            <div class="screen-container">
+                <div class="screen-canvas-wrapper">
+                    <canvas id="screenCanvas" width="1080" height="2340"></canvas>
+                </div>
+                <div class="controls-row">
+                    <button class="btn control-btn" onclick="sendKey(187)">||| Apps</button>
+                    <button class="btn control-btn" onclick="sendKey(3)">🏠 Início</button>
+                    <button class="btn control-btn" onclick="sendKey(4)">⬅️ Voltar</button>
+                    <button class="btn control-btn btn-danger" onclick="sendKey(26)">🔌 Tela</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Arquivos -->
+        <div id="filesTab" class="hidden">
             <div class="path-bar"><span>📍 /sdcard/</span><span id="currentPath"></span></div>
 
             <div class="drop-zone" id="dropZone">
@@ -157,25 +181,10 @@
             <ul class="file-list" id="fileList"></ul>
         </div>
 
+        <!-- Tab Apps -->
         <div id="appsTab" class="hidden">
             <h3 style="margin-bottom: 12px; font-size: 1.1rem;">Apps Instalados</h3>
             <ul class="file-list" id="appList"></ul>
-        </div>
-    </div>
-</div>
-
-<div id="appModal" class="modal hidden">
-    <div class="modal-content">
-        <h3 id="modalAppTitle" style="word-break: break-all; margin-bottom: 4px; font-size: 1.2rem;">--</h3>
-        <p style="font-family: monospace; font-size: 0.8rem; color: var(--accent); margin-bottom: 16px; word-break: break-all;" id="modalAppPackage">--</p>
-        
-        <p style="margin-bottom: 8px; color: var(--text-dim); font-size: 0.9rem;">Tamanho: <strong id="modalAppSize" style="color: white;">--</strong></p>
-        <p style="margin-bottom: 20px; color: var(--text-dim); font-size: 0.9rem;">Uso / Bateria: <br><small id="modalAppBattery" style="color: white; word-break: break-all;">--</small></p>
-        
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button class="btn" style="background: #e67e22;" onclick="clearAppData()">Limpar Dados/Cache</button>
-            <button class="btn btn-danger" onclick="uninstallApp()">Desinstalar App</button>
-            <button class="btn" style="background: rgba(255,255,255,0.1); margin-top: 4px;" onclick="closeAppModal()">Fechar</button>
         </div>
     </div>
 </div>
@@ -196,9 +205,9 @@
 
     let API_BASE_URL = localStorage.getItem('a50_server_url') || '';
     let authToken = localStorage.getItem('a50_token') || '';
-    let currentPath = '';
-    let selectedAppPackage = '';
-    let selectedAppName = '';
+    let wsScreen = null;
+    let canvas, ctx;
+    let startX = 0, startY = 0;
 
     if (API_BASE_URL) {
         document.getElementById('serverUrl').value = API_BASE_URL;
@@ -214,27 +223,97 @@
     function showLogin() {
         document.getElementById('loginView').classList.remove('hidden');
         document.getElementById('dashboardView').classList.add('hidden');
+        if (wsScreen) wsScreen.close();
     }
 
     function showDashboard() {
         document.getElementById('loginView').classList.add('hidden');
         document.getElementById('dashboardView').classList.remove('hidden');
-        loadFiles();
+        initScreenStream();
         loadSystemStatus();
     }
 
     function switchTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        if (tab === 'files') {
+        document.getElementById('screenTab').classList.add('hidden');
+        document.getElementById('filesTab').classList.add('hidden');
+        document.getElementById('appsTab').classList.add('hidden');
+
+        if (tab === 'screen') {
             document.querySelectorAll('.tab-btn')[0].classList.add('active');
-            document.getElementById('filesTab').classList.remove('hidden');
-            document.getElementById('appsTab').classList.add('hidden');
-        } else {
+            document.getElementById('screenTab').classList.remove('hidden');
+            if (!wsScreen || wsScreen.readyState !== WebSocket.OPEN) initScreenStream();
+        } else if (tab === 'files') {
             document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            document.getElementById('filesTab').classList.add('hidden');
+            document.getElementById('filesTab').classList.remove('hidden');
+            loadFiles();
+        } else if (tab === 'apps') {
+            document.querySelectorAll('.tab-btn')[2].classList.add('active');
             document.getElementById('appsTab').classList.remove('hidden');
             loadApps();
         }
+    }
+
+    // =========================================================
+    // ESPELHAMENTO DE TELA E INTERAÇÃO TOUCH
+    // =========================================================
+    function initScreenStream() {
+        canvas = document.getElementById('screenCanvas');
+        ctx = canvas.getContext('2d');
+
+        const wsProtocol = API_BASE_URL.startsWith('https') ? 'wss://' : 'ws://';
+        const wsUrl = API_BASE_URL.replace(/^https?:\/\//, wsProtocol) + '/api/screen-stream';
+
+        if (wsScreen) wsScreen.close();
+        wsScreen = new WebSocket(wsUrl);
+        wsScreen.binaryType = 'arraybuffer';
+
+        wsScreen.onmessage = (event) => {
+            const blob = new Blob([event.data], { type: 'image/jpeg' });
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = URL.createObjectURL(blob);
+        };
+
+        setupCanvasTouch();
+    }
+
+    function setupCanvasTouch() {
+        canvas.onpointerdown = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            startX = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+            startY = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+        };
+
+        canvas.onpointerup = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const endX = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+            const endY = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+
+            const dist = Math.hypot(endX - startX, endY - startY);
+
+            if (dist < 15) {
+                // Toque simples
+                sendTouch({ type: 'tap', x: startX, y: startY });
+            } else {
+                // Arrastar / Swipe
+                sendTouch({ type: 'swipe', x1: startX, y1: startY, x2: endX, y2: endY, duration: 250 });
+            }
+        };
+    }
+
+    function sendTouch(data) {
+        if (wsScreen && wsScreen.readyState === WebSocket.OPEN) {
+            wsScreen.send(JSON.stringify(data));
+        }
+    }
+
+    function sendKey(code) {
+        sendTouch({ type: 'key', code: code });
     }
 
     async function handleFirebaseLogin(e) {
@@ -268,6 +347,7 @@
     }
 
     async function handleLogout() {
+        if (wsScreen) wsScreen.close();
         await auth.signOut();
         localStorage.removeItem('a50_token');
         showLogin();
@@ -328,86 +408,6 @@
                 list.appendChild(li);
             });
         } catch(e) {}
-    }
-
-    async function openAppModal(name, pkg) {
-        selectedAppName = name;
-        selectedAppPackage = pkg;
-        document.getElementById('modalAppTitle').innerText = name;
-        document.getElementById('modalAppPackage').innerText = pkg;
-        document.getElementById('modalAppSize').innerText = 'Carregando...';
-        document.getElementById('modalAppBattery').innerText = 'Carregando...';
-        document.getElementById('appModal').classList.remove('hidden');
-
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/apps/details?pkg=${encodeURIComponent(pkg)}`, { headers: getAuthHeaders() });
-            if (res.ok) {
-                const data = await res.json();
-                document.getElementById('modalAppSize').innerText = data.size;
-                document.getElementById('modalAppBattery').innerText = data.battery;
-            }
-        } catch(e) {}
-    }
-
-    function closeAppModal() {
-        document.getElementById('appModal').classList.add('hidden');
-    }
-
-    async function clearAppData() {
-        if (!confirm(`Limpar dados de ${selectedAppName}?`)) return;
-        const res = await fetch(`${API_BASE_URL}/api/apps/clear`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ pkg: selectedAppPackage })
-        });
-        const data = await res.json();
-        alert(data.message || data.error);
-    }
-
-    async function uninstallApp() {
-        if (!confirm(`Desinstalar ${selectedAppName}?`)) return;
-        const res = await fetch(`${API_BASE_URL}/api/apps/uninstall`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ pkg: selectedAppPackage })
-        });
-        const data = await res.json();
-        alert(data.message || data.error);
-        closeAppModal();
-        loadApps();
-        loadSystemStatus();
-    }
-
-    function uploadFile(file) {
-        if (!file) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('targetPath', currentPath);
-        const xhr = new XMLHttpRequest();
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
-        progressContainer.style.display = 'block';
-
-        xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                progressBar.style.width = percent + '%';
-                progressText.innerText = `Enviando: ${percent}%`;
-            }
-        });
-
-        xhr.addEventListener('load', () => {
-            const response = JSON.parse(xhr.responseText || '{}');
-            alert(response.message || 'Upload concluído!');
-            progressContainer.style.display = 'none';
-            loadFiles();
-            loadSystemStatus();
-        });
-
-        xhr.open('POST', `${API_BASE_URL}/api/upload`);
-        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-        xhr.send(formData);
     }
 
     if (authToken && API_BASE_URL) {
