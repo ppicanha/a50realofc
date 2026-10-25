@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>A50 Cloud Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-grad: linear-gradient(135deg, #0d0f18 0%, #171a29 50%, #0d1117 100%);
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --accent: #7c4dff;
+            --danger: #ff4757;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+
+        body {
+            background: var(--bg-grad);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .hidden { display: none !important; }
+        .login-box { max-width: 400px; margin: 0 auto; text-align: center; }
+        .input-group { margin-bottom: 16px; text-align: left; }
+        .input-group label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 6px; }
+        
+        .input-control {
+            width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--card-border);
+            background: rgba(0,0,0,0.3); color: white; outline: none; font-size: 1rem;
+        }
+
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { font-size: 1.5rem; font-weight: 700; background: linear-gradient(90deg, #a78bfa, #7c4dff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .status-badge { background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); padding: 10px 12px; border-radius: 12px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 2px; }
+
+        .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; }
+        .tab-btn { flex: 1; text-align: center; background: none; border: none; color: var(--text-dim); padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .tab-btn.active { background: var(--accent); color: white; }
+
+        .path-bar { background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); padding: 12px 16px; border-radius: 12px; font-family: monospace; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; word-break: break-all; font-size: 0.9rem; }
+        .drop-zone { border: 2px dashed var(--accent); border-radius: 16px; padding: 24px 16px; text-align: center; background: rgba(124, 77, 255, 0.03); cursor: pointer; transition: all 0.3s ease; margin-bottom: 20px; }
+
+        .btn { background: var(--accent); color: white; border: none; padding: 12px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        .btn-danger { background: var(--danger); }
+
+        .progress-container { display: none; margin-top: 15px; background: rgba(0,0,0,0.4); border-radius: 10px; padding: 4px; border: 1px solid var(--card-border); }
+        .progress-bar { width: 0%; height: 12px; background: linear-gradient(90deg, #7c4dff, #a78bfa); border-radius: 8px; }
+
+        .file-list { list-style: none; max-height: 350px; overflow-y: auto; }
+        .file-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 12px; margin-bottom: 8px; gap: 10px; }
+        .file-item-name { display: flex; align-items: center; gap: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: flex-end; z-index: 100; }
+        .modal-content { background: #171a29; border: 1px solid var(--card-border); padding: 24px; border-top-left-radius: 24px; border-top-right-radius: 24px; max-width: 500px; width: 100%; }
+
+        @media (min-width: 600px) {
+            body { padding: 32px; }
+            .container { padding: 32px; }
+            h1 { font-size: 1.8rem; }
+            .status-badge { flex-direction: row; font-size: 0.85rem; justify-content: space-between; }
+            .tab-btn { flex: initial; }
+            .modal { align-items: center; }
+            .modal-content { border-radius: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="loginView" class="login-box">
+        <h1 style="margin-bottom: 8px;">Painel A50</h1>
+        <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 0.9rem;">Autenticação Firebase</p>
+        
+        <form onsubmit="handleFirebaseLogin(event)">
+            <div class="input-group">
+                <label>URL do Servidor Termux (Ex: https://xyz.trycloudflare.com)</label>
+                <input type="url" id="serverUrl" class="input-control" required placeholder="https://..." value="">
+            </div>
+            <div class="input-group">
+                <label>E-mail</label>
+                <input type="email" id="email" class="input-control" required placeholder="seuemail@exemplo.com">
+            </div>
+            <div class="input-group">
+                <label>Palavra-passe</label>
+                <input type="password" id="password" class="input-control" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn" style="width: 100%; margin-top: 10px;">Entrar</button>
+        </form>
+    </div>
+
+    <div id="dashboardView" class="hidden">
+        <header>
+            <div>
+                <h1>A50 Server</h1>
+                <span id="userBadge" style="font-size: 0.75rem; color: var(--accent);">--</span>
+            </div>
+            <button class="btn" style="background: rgba(255,255,255,0.1); padding: 8px 14px; font-size: 0.8rem;" onclick="handleLogout()">Sair</button>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-badge"><span>🔋 Bateria</span><strong id="batLevel">--</strong></div>
+            <div class="status-badge"><span>📶 Wi-Fi</span><strong id="wifiStatus">--</strong></div>
+            <div class="status-badge"><span>📊 Em uso</span><strong id="storageUsed">--</strong></div>
+            <div class="status-badge"><span>💾 Livre</span><strong id="storageFree">--</strong></div>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('files')">📁 Arquivos</button>
+            <button class="tab-btn" onclick="switchTab('apps')">📱 Aplicativos</button>
+        </div>
+
+        <div id="filesTab">
+            <div class="path-bar"><span>📍 /sdcard/</span><span id="currentPath"></span></div>
+
+            <div class="drop-zone" id="dropZone">
+                <p style="margin-bottom: 12px; color: var(--text-dim); font-size: 0.85rem;">Toque ou arraste ficheiros/APKs</p>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">Selecionar Ficheiro</button>
+                <input type="file" id="fileInput" hidden onchange="uploadFile(this.files[0])">
+                
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar" id="progressBar"></div>
+                    <span style="font-size: 0.85rem; margin-top: 8px; display: block;" id="progressText">0%</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="font-size: 1.1rem;">Ficheiros</h3>
+                <button class="btn" style="background: rgba(255,255,255,0.1); padding: 6px 12px; font-size: 0.8rem;" onclick="navigateUp()">⬆️ Voltar</button>
+            </div>
+
+            <ul class="file-list" id="fileList"></ul>
+        </div>
+
+        <div id="appsTab" class="hidden">
+            <h3 style="margin-bottom: 12px; font-size: 1.1rem;">Apps Instalados</h3>
+            <ul class="file-list" id="appList"></ul>
+        </div>
+    </div>
+</div>
+
+<div id="appModal" class="modal hidden">
+    <div class="modal-content">
+        <h3 id="modalAppTitle" style="word-break: break-all; margin-bottom: 4px; font-size: 1.2rem;">--</h3>
+        <p style="font-family: monospace; font-size: 0.8rem; color: var(--accent); margin-bottom: 16px; word-break: break-all;" id="modalAppPackage">--</p>
+        
+        <p style="margin-bottom: 8px; color: var(--text-dim); font-size: 0.9rem;">Tamanho: <strong id="modalAppSize" style="color: white;">--</strong></p>
+        <p style="margin-bottom: 20px; color: var(--text-dim); font-size: 0.9rem;">Uso / Bateria: <br><small id="modalAppBattery" style="color: white; word-break: break-all;">--</small></p>
+        
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn" style="background: #e67e22;" onclick="clearAppData()">Limpar Dados/Cache</button>
+            <button class="btn btn-danger" onclick="uninstallApp()">Desinstalar App</button>
+            <button class="btn" style="background: rgba(255,255,255,0.1); margin-top: 4px;" onclick="closeAppModal()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDs4N2fetINRXBej47HlqsuBgNRZTKhae0",
+        authDomain: "xvideos-85dd1.firebaseapp.com",
+        projectId: "xvideos-85dd1",
+        storageBucket: "xvideos-85dd1.firebasestorage.app",
+        messagingSenderId: "657672668903",
+        appId: "1:657672668903:web:1f6ac226858cbdc3fe4442",
+        measurementId: "G-X05PRTYQCX"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    let API_BASE_URL = localStorage.getItem('a50_server_url') || '';
+    let currentPath = '';
+    let selectedAppPackage = '';
+    let selectedAppName = '';
+
+    if (API_BASE_URL) {
+        document.getElementById('serverUrl').value = API_BASE_URL;
+    }
+
+    async function checkSession() {
+        if (!API_BASE_URL) return showLogin();
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/session`, { credentials: 'include' });
+            const data = await res.json();
+            if (data.isLoggedIn) {
+                document.getElementById('userBadge').innerText = data.email;
+                showDashboard();
+            } else {
+                showLogin();
+            }
+        } catch(e) {
+            showLogin();
+        }
+    }
+
+    function showLogin() {
+        document.getElementById('loginView').classList.remove('hidden');
+        document.getElementById('dashboardView').classList.add('hidden');
+    }
+
+    function showDashboard() {
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('dashboardView').classList.remove('hidden');
+        loadFiles();
+        loadSystemStatus();
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        if (tab === 'files') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            document.getElementById('filesTab').classList.remove('hidden');
+            document.getElementById('appsTab').classList.add('hidden');
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.getElementById('filesTab').classList.add('hidden');
+            document.getElementById('appsTab').classList.remove('hidden');
+            loadApps();
+        }
+    }
+
+    async function handleFirebaseLogin(e) {
+        e.preventDefault();
+        const serverUrlInput = document.getElementById('serverUrl').value.replace(/\/$/, '');
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        API_BASE_URL = serverUrlInput;
+        localStorage.setItem('a50_server_url', API_BASE_URL);
+
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            const user = userCredential.user;
+
+            const res = await fetch(`${API_BASE_URL}/api/login-firebase`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email: user.email })
+            });
+
+            if (res.ok) {
+                checkSession();
+            } else {
+                alert('Erro na conexão com a API do Termux.');
+            }
+        } catch (error) {
+            alert('Erro no login Firebase: ' + error.message);
+        }
+    }
+
+    async function handleLogout() {
+        await auth.signOut();
+        await fetch(`${API_BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+        showLogin();
+    }
+
+    async function loadSystemStatus() {
+        const res = await fetch(`${API_BASE_URL}/api/system`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('batLevel').innerText = data.battery;
+            document.getElementById('wifiStatus').innerText = data.wifi;
+            document.getElementById('storageUsed').innerText = data.storage.used + ' / ' + data.storage.total;
+            document.getElementById('storageFree').innerText = data.storage.free;
+        }
+    }
+
+    async function loadFiles() {
+        const res = await fetch(`${API_BASE_URL}/api/files?path=${encodeURIComponent(currentPath)}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('currentPath').innerText = currentPath;
+        const list = document.getElementById('fileList');
+        list.innerHTML = '';
+        data.files.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            li.innerHTML = `<div class="file-item-name"><span>${item.isDirectory ? '📁' : '📄'}</span><span>${item.name}</span></div>`;
+            if (item.isDirectory) {
+                li.onclick = () => { currentPath += (currentPath ? '/' : '') + item.name; loadFiles(); };
+            }
+            list.appendChild(li);
+        });
+    }
+
+    function navigateUp() {
+        if (!currentPath) return;
+        const parts = currentPath.split('/');
+        parts.pop();
+        currentPath = parts.join('/');
+        loadFiles();
+    }
+
+    async function loadApps() {
+        const res = await fetch(`${API_BASE_URL}/api/apps`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = document.getElementById('appList');
+        list.innerHTML = '';
+        data.apps.forEach(app => {
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            li.innerHTML = `<div class="file-item-name"><span>📱</span><span style="font-weight: 600;">${app.name}</span></div><button class="btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openAppModal('${app.name}', '${app.package}')">Gerenciar</button>`;
+            list.appendChild(li);
+        });
+    }
+
+    async function openAppModal(name, pkg) {
+        selectedAppName = name;
+        selectedAppPackage = pkg;
+        document.getElementById('modalAppTitle').innerText = name;
+        document.getElementById('modalAppPackage').innerText = pkg;
+        document.getElementById('modalAppSize').innerText = 'Carregando...';
+        document.getElementById('modalAppBattery').innerText = 'Carregando...';
+        document.getElementById('appModal').classList.remove('hidden');
+
+        const res = await fetch(`${API_BASE_URL}/api/apps/details?pkg=${encodeURIComponent(pkg)}`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('modalAppSize').innerText = data.size;
+            document.getElementById('modalAppBattery').innerText = data.battery;
+        }
+    }
+
+    function closeAppModal() {
+        document.getElementById('appModal').classList.add('hidden');
+    }
+
+    async function clearAppData() {
+        if (!confirm(`Limpar dados de ${selectedAppName}?`)) return;
+        const res = await fetch(`${API_BASE_URL}/api/apps/clear`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ pkg: selectedAppPackage })
+        });
+        const data = await res.json();
+        alert(data.message || data.error);
+    }
+
+    async function uninstallApp() {
+        if (!confirm(`Desinstalar ${selectedAppName}?`)) return;
+        const res = await fetch(`${API_BASE_URL}/api/apps/uninstall`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ pkg: selectedAppPackage })
+        });
+        const data = await res.json();
+        alert(data.message || data.error);
+        closeAppModal();
+        loadApps();
+        loadSystemStatus();
+    }
+
+    function uploadFile(file) {
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('targetPath', currentPath);
+        const xhr = new XMLHttpRequest();
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        progressContainer.style.display = 'block';
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                progressText.innerText = `Enviando: ${percent}%`;
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            const response = JSON.parse(xhr.responseText || '{}');
+            alert(response.message || 'Upload concluído!');
+            progressContainer.style.display = 'none';
+            loadFiles();
+            loadSystemStatus();
+        });
+
+        xhr.open('POST', `${API_BASE_URL}/api/upload`);
+        xhr.withCredentials = true;
+        xhr.send(formData);
+    }
+
+    checkSession();
+</script>
+</body>
+</html>
+EOF
